@@ -117,6 +117,9 @@ def db_row(
         "fecha_primera_cuota": sale.get("fecha_primera_cuota"),
         "cedula_dicha": result.get("cedula_dicha"),
         "metricas": result.get("metricas", []),
+        # Columna aparte para abrir la grabación con un clic desde la tabla.
+        # Vacía si la llamada no llegó a Bunny (sin grabación o Bunny sin configurar).
+        "grabacion_url": (recording or {}).get("url"),
     }
 
 
