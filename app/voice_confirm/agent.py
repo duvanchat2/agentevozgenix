@@ -3,8 +3,8 @@
 Flujo de cada llamada (un "job" por sala):
 1. El dispatcher crea la sala y despacha este agente con la venta en `metadata`.
 2. El agente arranca la sesión de voz y marca al celular del cliente (SIP, espera a que conteste).
-3. AMD (detección de buzón) escucha el primer saludo: si es un buzón, cuelga.
-4. Si es una persona, dice el saludo fijo y el modelo sigue el guion con 4 herramientas.
+3. Al contestar suena un pitido y el agente saluda de una: no espera ningún "hola" del cliente.
+4. El AMD (detección de buzón) corre en paralelo mientras saluda: si es un buzón, corta y cuelga.
 5. Al colgar, copia la grabación y escribe result.json; el dispatcher entrega a n8n.
 
 En una simulación (metadata "simulacion": true) no se marca: el "cliente" entra a la sala desde
@@ -79,6 +79,8 @@ SIM_MIC_TIMEOUT_S = 10  # tiempo para que el navegador publique el micrófono
 SILENCIO_REPREGUNTA_S = 8.0  # silencio del cliente tras una pregunta antes de repetirla
 MAX_REPREGUNTAS = 2
 SALUDO_ESPERA_S = 3.0  # si el saludo pre-sintetizado no está listo a tiempo, se dice con TTS en vivo
+PITIDO_DURACION_S = 0.35  # lo que dura el pitido de inicio: se deja sonar antes de saludar
+AMD_VEREDICTO_S = 7.0  # el AMD corre mientras el agente saluda; pasado esto se asume persona
 
 
 @dataclass
@@ -246,13 +248,18 @@ class ConfirmacionAgent(Agent):
         self._tareas.add(tarea)
         tarea.add_done_callback(self._tareas.discard)
 
+    def pitido(self) -> None:
+        """Suena el tono corto. Se usa al abrir la llamada y cada vez que el cliente termina de hablar."""
+        if self.fondo is None:
+            return
+        try:
+            self.fondo.play(AudioConfig(_pitido_frames(), volume=PITIDO_VOLUMEN))
+        except Exception:
+            logger.warning("no se pudo reproducir el pitido", exc_info=True)
+
     async def on_user_turn_completed(self, turn_ctx: Any, new_message: Any) -> None:
         # Pitido apenas el cliente termina de hablar: sabe que se le escuchó mientras se valida.
-        if self.fondo is not None:
-            try:
-                self.fondo.play(AudioConfig(_pitido_frames(), volume=PITIDO_VOLUMEN))
-            except Exception:
-                logger.warning("no se pudo reproducir el pitido", exc_info=True)
+        self.pitido()
 
     async def tts_node(self, text: AsyncIterable[str], model_settings: ModelSettings):
         async for frame in Agent.default.tts_node(self, _solo_espanol(text), model_settings):
@@ -526,6 +533,9 @@ async def entrypoint(ctx: JobContext) -> None:
     agent.audio = audio
 
     async def saludar() -> None:
+        # Primero el pitido: la persona oye que el proceso arrancó aunque no haya dicho nada.
+        agent.pitido()
+        await asyncio.sleep(PITIDO_DURACION_S)
         await audio.esperar(greeting_text(), SALUDO_ESPERA_S)
         decir(session, greeting_text(), audio, allow_interruptions=False)
 
@@ -599,7 +609,14 @@ async def entrypoint(ctx: JobContext) -> None:
                 )
             )
             state.contestada = utcnow()
-            verdict = await detector.execute()
+            # El cliente espera la llamada: el agente habla primero y no aguarda ningún "hola".
+            # El AMD sigue escuchando al otro lado mientras el saludo suena, para cortar si es buzón.
+            saludo = asyncio.create_task(saludar())
+            try:
+                verdict = await asyncio.wait_for(detector.execute(), AMD_VEREDICTO_S)
+            except asyncio.TimeoutError:
+                # Sin veredicto a tiempo (lo normal si la persona se queda callada oyendo): es persona.
+                verdict = None
     except api.SipCallError as exc:
         state.status_override = status_from_sip_code(exc.sip_status_code)
         state.motivo_fin = f"sip_{exc.sip_status_code or 'error'}"
@@ -613,13 +630,22 @@ async def entrypoint(ctx: JobContext) -> None:
         ctx.shutdown(reason="error_al_marcar")
         return
 
-    if verdict.is_machine:
+    if verdict is not None and verdict.is_machine:
+        # Es un buzón y el saludo ya está sonando: se corta en seco y se cuelga sin dejar mensaje.
+        saludo.cancel()
+        try:
+            session.interrupt()
+        except Exception:
+            logger.warning("no se pudo cortar el saludo en el buzón", exc_info=True)
         state.status_override = "buzon"
         state.motivo_fin = str(verdict.category.value)
         await hangup()
         return
 
-    await saludar()
+    # El saludo ya arrancó; si falló al sintetizarse no se pierde la llamada por eso.
+    for resultado in await asyncio.gather(saludo, return_exceptions=True):
+        if isinstance(resultado, BaseException):
+            logger.exception("falló el saludo inicial", exc_info=resultado)
 
 
 async def finalize(
