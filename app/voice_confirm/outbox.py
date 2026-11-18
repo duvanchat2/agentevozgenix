@@ -177,6 +177,10 @@ async def deliver(directory: Path, settings: DeliverySettings, client: httpx.Asy
         else:
             recording = {"almacen": "vps", "ruta": str(audio)}
         write_json_atomic(directory / "recording.json", recording)
+        # Ya está en Bunny: el VPS no guarda copia. Se borra después de escribir recording.json,
+        # así que si algo falla aquí la ruta remota nunca se pierde.
+        if recording.get("almacen") == "bunny":
+            audio.unlink(missing_ok=True)
 
     if settings.supabase_url and settings.supabase_key:
         await save_to_db(client, settings, db_row(call_id, request, result, recording))

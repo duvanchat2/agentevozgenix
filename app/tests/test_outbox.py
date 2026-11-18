@@ -152,6 +152,8 @@ async def test_deliver_uploads_to_bunny_once(tmp_path: Path) -> None:
     recording = read_json(directory / "recording.json")
     assert recording["almacen"] == "bunny"
     assert recording["url"].startswith("https://cdn.example.com/grabaciones/")
+    # Subida a Bunny: el VPS ya no guarda el audio, aunque n8n haya fallado.
+    assert not (directory / "audio.ogg").exists()
     assert not (directory / "delivered.json").exists()
 
     # Segundo intento: no vuelve a subir el audio, solo reintenta n8n.
