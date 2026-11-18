@@ -8,7 +8,7 @@
 #   1. Instala Docker si falta.
 #   2. Genera las claves internas que sigan en REEMPLAZA_ dentro de .env.
 #   3. Verifica que estén las credenciales externas (AssemblyAI, LLM, voz; Zadarma y n8n opcionales).
-#      Sin Zadarma queda en "modo simulación": solo llamadas de prueba desde el navegador (/prueba).
+#      Sin Zadarma queda en "modo simulación": solo llamadas de prueba desde el navegador (la raíz del subdominio).
 #   4. Genera la configuración de LiveKit y del servicio SIP.
 #   5. Abre en el firewall solo lo necesario (SSH, SIP 5060, audio 10000-20000/udp y, con dominio,
 #      80/443 y el audio del simulador 7881/tcp y 50000-50100/udp).
@@ -96,7 +96,7 @@ if [ "$zadarma_count" -gt 0 ]; then
   with_zadarma=1
 else
   with_zadarma=0
-  echo "  Sin Zadarma: MODO SIMULACIÓN. Solo funcionan las llamadas de prueba desde el navegador (/prueba)."
+  echo "  Sin Zadarma: MODO SIMULACIÓN. Solo funcionan las llamadas de prueba desde el navegador (la raíz del subdominio)."
   echo "  Cuando tenga la extensión y el 601, complete ZADARMA_* y vuelva a correr este script."
 fi
 if ! is_set N8N_RESULT_WEBHOOK_URL; then
@@ -201,7 +201,7 @@ check_status=0
 echo
 ip="$(curl -fsS https://api.ipify.org 2>/dev/null || true)"
 if [ -n "${DISPATCHER_DOMAIN:-}" ]; then
-  echo "Simulador (habla con el agente desde el navegador): https://${DISPATCHER_DOMAIN}/prueba"
+  echo "Página de confirmación del cliente: https://${DISPATCHER_DOMAIN}/"
   echo "Pide el DISPATCHER_TOKEN del .env. Para un enlace que ya lo lleve: ./scripts/sim-link.sh"
   if [ -n "$ip" ] && [ "${LIVEKIT_USE_EXTERNAL_IP:-false}" != "true" ] && ! hostname -I 2>/dev/null | tr ' ' '\n' | grep -qx "$ip"; then
     echo "AVISO: la IP pública ${ip} no está en las interfaces del VPS (está detrás de NAT)."

@@ -137,9 +137,8 @@ def test_simulation_dispatches_agent_and_returns_browser_token(
     # Domingo: una llamada real se rechazaría, pero la simulación no llama a nadie.
     monkeypatch.setattr(dispatcher, "utcnow", lambda: datetime(2026, 11, 1, 22, 0, tzinfo=BOGOTA))
     sim = {k: v for k, v in SALE.items() if k != "telefono"}
-    assert client.post("/v1/simulaciones", json=sim).status_code == 401
-
-    resp = client.post("/v1/simulaciones", json=sim, headers=auth())
+    # La página del cliente no lleva token: crear la simulación es público.
+    resp = client.post("/v1/simulaciones", json=sim)
     assert resp.status_code == 202, resp.text
     body = resp.json()
     call_id = body["call_id"]
@@ -166,6 +165,11 @@ def test_simulation_dispatches_agent_and_returns_browser_token(
     assert status["estado"] == "en_curso"
     assert status["resultado"] is None
 
+    # El estado de la simulación es público, pero solo el estado.
+    publico = client.get(f"/v1/simulaciones/{call_id}")
+    assert publico.status_code == 200
+    assert publico.json() == {"call_id": call_id, "estado": "en_curso"}
+
 
 def test_call_result_and_recording(client: TestClient) -> None:
     sim = {k: v for k, v in SALE.items() if k != "telefono"}
@@ -184,7 +188,10 @@ def test_call_result_and_recording(client: TestClient) -> None:
     assert status["grabacion"] is True
     assert status["resultado"]["transcripcion"][0]["texto"] == "acepto"
 
+    # Sin token: ni la grabación ni el detalle (transcripción, cédula) salen del VPS.
     assert client.get(f"/v1/calls/{call_id}/audio").status_code == 401
+    assert client.get(f"/v1/calls/{call_id}").status_code == 401
+    assert client.get(f"/v1/simulaciones/{call_id}").json() == {"call_id": call_id, "estado": "confirmada"}
     audio = client.get(f"/v1/calls/{call_id}/audio", headers=auth())
     assert audio.status_code == 200
     assert audio.headers["content-type"] == "audio/ogg"
@@ -193,7 +200,7 @@ def test_call_result_and_recording(client: TestClient) -> None:
 
 
 def test_simulator_page(client: TestClient) -> None:
-    resp = client.get("/prueba")
+    resp = client.get("/")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
     html = resp.text

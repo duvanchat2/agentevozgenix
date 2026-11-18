@@ -167,7 +167,7 @@ ZADARMA_VARS = ("ZADARMA_SIP_USER", "ZADARMA_SIP_PASSWORD", "ZADARMA_CALLER_NUMB
 
 
 def zadarma_configured() -> bool:
-    """Sin Zadarma el servicio solo hace llamadas simuladas desde el navegador (/prueba)."""
+    """Sin Zadarma el servicio solo hace llamadas simuladas desde el navegador."""
     return all(_opt(name) for name in ZADARMA_VARS)
 
 

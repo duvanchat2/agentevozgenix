@@ -8,7 +8,7 @@ Flujo de cada llamada (un "job" por sala):
 5. Al colgar, copia la grabación y escribe result.json; el dispatcher entrega a n8n.
 
 En una simulación (metadata "simulacion": true) no se marca: el "cliente" entra a la sala desde
-el navegador (/prueba del dispatcher) y el resto del flujo es idéntico.
+el navegador (la página del dispatcher) y el resto del flujo es idéntico.
 
 Ejecutar:  python -m voice_confirm.agent start
 """

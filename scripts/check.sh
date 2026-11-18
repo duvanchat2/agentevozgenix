@@ -38,7 +38,7 @@ fi
 check "Agente registrado en LiveKit" sh -c "docker compose logs --since 30m agent 2>&1 | grep -qi 'registered worker'"
 check "Puerto SIP 5060/udp escuchando" sh -c "ss -H -ulnp | grep -q ':5060 '"
 if [ -n "${DISPATCHER_DOMAIN:-}" ]; then
-  check "Simulador por HTTPS (https://${DISPATCHER_DOMAIN}/prueba)" curl -fsS "https://${DISPATCHER_DOMAIN}/prueba"
+  check "Página de confirmación por HTTPS (https://${DISPATCHER_DOMAIN}/)" curl -fsS "https://${DISPATCHER_DOMAIN}/"
 fi
 
 echo

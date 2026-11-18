@@ -3,8 +3,9 @@
   POST /v1/calls             n8n pide una llamada (Bearer DISPATCHER_TOKEN)
   GET  /v1/calls/{call_id}   estado y resultado de una llamada (Bearer DISPATCHER_TOKEN)
   GET  /v1/calls/{call_id}/audio   la grabación (Bearer DISPATCHER_TOKEN)
-  POST /v1/simulaciones      llamada simulada: el "cliente" habla desde el navegador, sin Zadarma
-  GET  /prueba               página del simulador (pide el DISPATCHER_TOKEN)
+  POST /v1/simulaciones      llamada simulada: el "cliente" habla desde el navegador, sin Zadarma (pública)
+  GET  /v1/simulaciones/{call_id}  solo el estado de una llamada simulada (pública)
+  GET  /                     página de confirmación para el cliente (sin token)
   GET  /healthz              salud: LiveKit responde y la troncal existe
   POST /internal/calls/{id}/done   el agente avisa que colgó (solo localhost, X-Internal-Token)
 
@@ -233,7 +234,7 @@ async def create_call(body: SaleIn) -> dict[str, Any]:
             status_code=503,
             detail={
                 "error": "sin_zadarma",
-                "mensaje": "Faltan los datos de Zadarma en .env: por ahora solo funcionan las llamadas simuladas (/prueba).",
+                "mensaje": "Faltan los datos de Zadarma en .env: por ahora solo funcionan las llamadas desde el navegador.",
             },
         )
     now = utcnow()
@@ -249,7 +250,7 @@ async def create_call(body: SaleIn) -> dict[str, Any]:
     return {"call_id": call_id, "estado": "marcando"}
 
 
-@app.post("/v1/simulaciones", status_code=202, dependencies=[Depends(require_token)])
+@app.post("/v1/simulaciones", status_code=202)
 async def create_simulation(body: SimulacionIn) -> dict[str, Any]:
     """Llamada simulada: mismo agente, guion, grabación y resultado, pero el cliente entra por el
     navegador en vez de por Zadarma. No llama a nadie, así que no aplica el horario de la Ley 2300."""
@@ -316,9 +317,22 @@ async def get_call_audio(call_id: str) -> FileResponse:
     return FileResponse(audio, media_type="audio/ogg", filename=f"{call_id}.ogg")
 
 
-@app.get("/prueba", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/v1/simulaciones/{call_id}")
+async def get_simulation_status(call_id: str) -> dict[str, Any]:
+    """Estado de una llamada iniciada desde el navegador. Público, porque la página del cliente
+    no lleva token: por eso devuelve solo el estado y nunca la transcripción, la cédula ni el
+    teléfono. El detalle completo sigue en GET /v1/calls/{call_id}, que exige el DISPATCHER_TOKEN."""
+    directory, request = existing_call_dir(call_id)
+    if not request.get("simulacion", False):
+        raise HTTPException(status_code=404, detail="No existe esa llamada")
+    result = read_json(directory / "result.json")
+    return {"call_id": call_id, "estado": result["estado"] if result else "en_curso"}
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def simulator_page() -> HTMLResponse:
-    # La página no lleva secretos: pide el DISPATCHER_TOKEN y lo guarda solo en esa pestaña.
+    # La página no lleva secretos ni pide token: crea la llamada contra los endpoints públicos
+    # de simulación. Vive en la raíz del subdominio (antes estaba en /prueba).
     return HTMLResponse(SIMULATOR_PAGE.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
 
 

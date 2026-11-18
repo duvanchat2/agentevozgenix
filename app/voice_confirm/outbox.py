@@ -7,7 +7,7 @@
   delivery.json   intentos de entrega a n8n
   delivered.json  marca de entregado: con esto la llamada queda cerrada
 
-Las llamadas simuladas desde el navegador (/prueba) usan la misma carpeta y llegan a n8n
+Las llamadas simuladas desde el navegador usan la misma carpeta y llegan a n8n
 con "simulacion": true.
 
 Usar archivos (y no memoria) hace que un reinicio del contenedor no pierda resultados.

@@ -225,7 +225,7 @@ hay partes que solo se confirman con el VPS, Zadarma y las cuentas reales:
 Sin las variables `ZADARMA_*`, el servicio queda en **modo simulación**. En ese modo:
 
 - `POST /v1/calls` responde `503 sin_zadarma`.
-- Solo funciona la página `https://<dominio>/prueba`.
+- Solo funciona la página `https://<dominio>/`.
 
 En esa página usted hace de cliente desde el celular o el computador. Habla con el mismo agente, que sigue el mismo guion, y la llamada se graba y se evalúa igual que una real.
 
